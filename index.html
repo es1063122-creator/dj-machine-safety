@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>동진안전 | 건설기계 일일 안전점검</title>
+
+  <!-- Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(135deg,#0a2a4f,#003a7a,#195cc8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 420px;
+      background: #ffffff;
+      border-radius: 28px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.35);
+      overflow: hidden;
+    }
+
+    /* ===== HEADER ===== */
+    .header {
+      background: linear-gradient(135deg,#0059b3,#003366);
+      color: white;
+      padding: 34px 28px 30px;
+      text-align: center;
+    }
+
+    .header img {
+      width: 88px;
+      margin-bottom: 14px;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      font-size: 15px;
+      opacity: .9;
+      margin-top: 6px;
+    }
+
+    /* ===== CONTENT ===== */
+    .content {
+      padding: 30px 26px 34px;
+    }
+
+    .card {
+      background: #f4f7ff;
+      border: 2px solid #dbe6ff;
+      border-radius: 18px;
+      padding: 22px;
+      margin-bottom: 18px;
+      cursor: pointer;
+      transition: .25s;
+    }
+
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 26px rgba(0,64,128,.25);
+    }
+
+    .card h2 {
+      font-size: 20px;
+      font-weight: 800;
+      color: #003366;
+      margin-bottom: 6px;
+    }
+
+    .card p {
+      font-size: 14px;
+      color: #4b5f8a;
+      line-height: 1.5;
+    }
+
+    .primary {
+      background: linear-gradient(135deg,#2a6ff7,#004080);
+      border: none;
+      color: white;
+    }
+
+    .primary h2,
+    .primary p {
+      color: white;
+    }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      color: #8a9bbd;
+      padding: 14px 10px 18px;
+    }
+
+    .footer strong {
+      color: #4b5f8a;
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- HEADER -->
+    <div class="header">
+      <img src="https://github.com/es1063122-creator/djweb/blob/main/djlogo.png?raw=1" alt="동진토건">
+      <h1>동진안전</h1>
+      <p>건설기계 일일 안전점검 시스템</p>
+    </div>
+
+    <!-- CONTENT -->
+    <div class="content">
+
+      <!-- 점검 시작 -->
+      <div class="card primary" onclick="goInspection()">
+        <h2>📝 일일 안전점검</h2>
+        <p>
+          장비 운행 전 필수 점검<br>
+          굴삭기 · 크레인 · 지게차 외 27종
+        </p>
+      </div>
+
+      <!-- 관리자 -->
+      <div class="card" onclick="goAdmin()">
+        <h2>📊 점검 이력 조회</h2>
+        <p>
+          현장별 · 장비별 점검 기록<br>
+          관리자 전용
+        </p>
+      </div>
+
+      <!-- 포털 -->
+      <div class="card" onclick="goPortal()">
+        <h2>🏠 동진 안전 포털</h2>
+        <p>
+          위험성평가 · 작업계획 · 안전지침
+        </p>
+      </div>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <strong>Dongjin Construction</strong><br>
+      Safety Management Platform
+    </div>
+
+  </div>
+
+  <script>
+    function goInspection() {
+      location.href = "./inspection.html";
+    }
+
+    function goAdmin() {
+      location.href = "./admin.html";
+    }
+
+    function goPortal() {
+      location.href = "https://es1063122-creator.github.io/dj-safty-portal/";
+    }
+  </script>
+
+</body>
+</html>

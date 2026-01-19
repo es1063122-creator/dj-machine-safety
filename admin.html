@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>관리자 대시보드 | 건설기계 안전점검</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- html2pdf (그래프 포함 PDF 다운로드) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Noto Sans KR';
+  background:linear-gradient(135deg,#eef3ff,#f8faff);
+  padding:20px;color:#0b1b3b
+}
+.container{max-width:1400px;margin:auto}
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom:18px
+}
+.header h1{font-size:32px;font-weight:900}
+.header .pdf-btn{
+  padding:12px 18px;
+  border:none;
+  border-radius:14px;
+  background:#0059b3;
+  color:#fff;
+  font-weight:900;
+  cursor:pointer;
+  box-shadow:0 10px 25px rgba(0,40,120,.18);
+  transition:.2s;
+  white-space:nowrap;
+}
+.header .pdf-btn:hover{transform:translateY(-1px);box-shadow:0 14px 32px rgba(0,40,120,.25)}
+
+.buttons{
+  display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px
+}
+.buttons button{
+  padding:12px 18px;border:none;border-radius:999px;
+  font-weight:900;cursor:pointer;background:#e7efff
+}
+.buttons button.active{background:#0059b3;color:#fff}
+
+.filters{
+  background:#fff;border-radius:18px;padding:18px;
+  box-shadow:0 10px 30px rgba(0,40,120,.12);
+  display:grid;grid-template-columns:repeat(4,1fr);
+  gap:12px;margin-bottom:18px
+}
+@media(max-width:900px){
+  .filters{grid-template-columns:1fr 1fr}
+  .header{flex-direction:column;align-items:flex-start}
+}
+.filters select,.filters input{
+  padding:14px;border-radius:14px;border:2px solid #dbe6ff;font-size:15px
+}
+
+.grid{
+  display:grid;grid-template-columns:repeat(2,1fr);
+  gap:18px;margin-bottom:18px
+}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+.card{
+  background:#fff;border-radius:22px;padding:18px;
+  box-shadow:0 10px 30px rgba(0,40,120,.12)
+}
+.card h3{font-size:16px;font-weight:900;margin-bottom:12px}
+
+.list-card{margin-top:10px}
+.row-card{
+  background:#fff;border-radius:22px;padding:18px;
+  box-shadow:0 10px 30px rgba(0,40,120,.12);
+  margin-bottom:14px
+}
+.row-title{font-weight:900;font-size:16px;margin-bottom:6px}
+.row-sub{color:#50627f;font-weight:700}
+
+.bad-item{
+  background:#f8f9ff;border-left:6px solid #d62839;
+  border-radius:12px;padding:12px;margin-top:10px
+}
+.bad-item strong{color:#d62839}
+.action{margin-top:6px;font-weight:800;color:#223}
+
+.badge{
+  display:inline-block;
+  padding:6px 12px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  margin-top:8px;
+}
+.badge.good{background:#e6f4ea;color:#1e7e34}
+.badge.bad{background:#ffe0e0;color:#b02a37}
+
+.empty{text-align:center;color:#6c757d;margin-top:40px}
+
+/* PDF용 타이틀 */
+.pdf-head{
+  text-align:center;
+  margin-bottom:14px;
+  padding:12px 10px;
+}
+.pdf-head h2{
+  font-size:22px;
+  font-weight:900;
+  margin-bottom:6px;
+}
+.pdf-head p{
+  font-weight:800;
+  color:#445;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h1>📊 관리자 대시보드</h1>
+    <button class="pdf-btn" onclick="downloadPDF()">📄 PDF 보고서 다운로드</button>
+  </div>
+
+  <!-- 조회 버튼 -->
+  <div class="buttons">
+    <button class="active" onclick="setMode('all',this)">전현장 · 전장비</button>
+    <button onclick="setMode('site',this)">현장별 전체</button>
+    <button onclick="setMode('siteEquipment',this)">현장 + 장비</button>
+    <button onclick="setMode('badOnly',this)">불량만</button>
+  </div>
+
+  <!-- ===== PDF로 저장될 전체 영역 ===== -->
+  <div id="pdfArea">
+
+    <!-- PDF 상단 제목/조건 -->
+    <div class="pdf-head">
+      <h2>동진토건(주) 건설기계 안전점검 보고서</h2>
+      <p>
+        현장: <span id="pdfSite">전현장</span> /
+        장비: <span id="pdfEquip">전장비</span> /
+        기준일: <span id="pdfDate">전체</span>
+      </p>
+    </div>
+
+    <!-- 필터 -->
+    <div class="filters">
+      <select id="filterSite">
+        <option value="">전체 현장</option>
+        <option>파주pmc</option>
+        <option>울산태화강</option>
+        <option>울산우정동</option>
+        <option>여수</option>
+        <option>강변역아이파크</option>
+        <option>김해사이언스파크</option>
+      </select>
+
+      <select id="filterEquipment">
+        <option value="">전체 장비</option>
+      </select>
+
+      <input type="date" id="filterDate">
+      <input type="text" id="filterInspector" placeholder="점검자">
+    </div>
+
+    <!-- 그래프 -->
+    <div class="grid">
+      <div class="card">
+        <h3>전체 점검 vs 불량 점검</h3>
+        <canvas id="summaryChart"></canvas>
+      </div>
+      <div class="card">
+        <h3>현장별 불량 분포</h3>
+        <canvas id="siteChart"></canvas>
+      </div>
+      <div class="card">
+        <h3>장비별 불량 분포</h3>
+        <canvas id="equipmentChart"></canvas>
+      </div>
+      <div class="card">
+        <h3>불량 항목 TOP</h3>
+        <canvas id="itemChart"></canvas>
+      </div>
+    </div>
+
+    <!-- 목록 -->
+    <div id="list" class="list-card"></div>
+
+  </div>
+  <!-- ===== /PDF 영역 끝 ===== -->
+
+</div>
+
+<script>
+/* ================= Firebase ================= */
+firebase.initializeApp({
+  apiKey: "AIzaSyAYuEpTuJ7OFrSbqwhWle-CXGwgFeXJhjE",
+  authDomain: "dj-machine-safety.firebaseapp.com",
+  projectId: "dj-machine-safety",
+  storageBucket: "dj-machine-safety.firebasestorage.app",
+  messagingSenderId: "73972298220",
+  appId: "1:73972298220:web:fe6d50e5ce1077a90410c9"
+});
+const db = firebase.firestore();
+
+/* ================= 장비 목록 ================= */
+const EQUIPMENTS=[
+ '타워크레인','하이드로 크레인','이동식 Self-Erecting 크레인','크롤러 크레인','카고크레인',
+ '곤돌라','건설작업용 리프트','천장주행(갠트리)크레인','지게차',
+ '고소작업대(시저형)','고소작업대(굴절형)','고소작업차','굴삭기','항타기/항발기',
+ '덤프트럭','콘크리트 믹서트럭','콘크리트 펌프카(숏크리트)','모터 그레이더','로더',
+ '도로포장용 건설기계','아스팔트 살포기','불도저','천공기',
+ '지반 압밀침하용 건설기계','롤러','공기압축기'
+];
+EQUIPMENTS.forEach(e=>filterEquipment.add(new Option(e,e)));
+
+/* ================= 상태 ================= */
+let inspections = [];
+let mode = 'all';
+let charts = {};
+
+/* ================= 실시간 로드 ================= */
+db.collection('inspections')
+  .orderBy('createdAt','desc')
+  .onSnapshot(s=>{
+    inspections = s.docs.map(d=>d.data());
+    render();
+  }, err=>{
+    console.error(err);
+    alert('Firestore 읽기 오류: 보안 규칙(read) 또는 인덱스(orderBy) 문제일 수 있습니다.');
+  });
+
+/* ================= 이벤트 ================= */
+['filterSite','filterEquipment','filterDate','filterInspector']
+  .forEach(id=>document.getElementById(id).addEventListener('input',render));
+
+function setMode(m, btn){
+  mode = m;
+  document.querySelectorAll('.buttons button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+
+  // 모드에 따라 UX 친화적으로 필터 가이드(필수는 아님)
+  if(mode==='site'){
+    if(!filterSite.value) filterSite.focus();
+  }
+  if(mode==='siteEquipment'){
+    if(!filterSite.value) filterSite.focus();
+  }
+  render();
+}
+
+/* ================= 렌더 ================= */
+function render(){
+  const data = inspections.filter(d=>{
+    // 기본 필터
+    if(filterSite.value && d.siteName !== filterSite.value) return false;
+    if(filterEquipment.value && d.equipment !== filterEquipment.value) return false;
+    if(filterDate.value && d.inspectionDate !== filterDate.value) return false;
+    if(filterInspector.value && !(d.inspector||'').includes(filterInspector.value)) return false;
+
+    // 모드 조건
+    if(mode==='badOnly' && !safeResults(d).some(r=>r.result==='불량')) return false;
+
+    // site / siteEquipment 모드일 때 (선택 안하면 전체로 남게 두되, UX는 버튼이 의미있게)
+    // (여기서 강제 제한하고 싶으면 아래 주석 해제)
+    // if(mode==='site' && !filterSite.value) return false;
+    // if(mode==='siteEquipment' && (!filterSite.value || !filterEquipment.value)) return false;
+
+    return true;
+  });
+
+  // PDF 상단 표시
+  pdfSite.innerText = filterSite.value || '전현장';
+  pdfEquip.innerText = filterEquipment.value || '전장비';
+  pdfDate.innerText = filterDate.value || '전체';
+
+  drawCharts(data);
+  renderList(data);
+}
+
+/* results 안전 처리 */
+function safeResults(d){
+  return Array.isArray(d.results) ? d.results : [];
+}
+
+/* ================= 그래프 ================= */
+function drawCharts(data){
+  const total = data.length;
+  const badIns = data.filter(d=>safeResults(d).some(r=>r.result==='불량')).length;
+
+  const siteMap = {};
+  const equipMap = {};
+  const itemMap = {};
+
+  data.forEach(d=>{
+    const bads = safeResults(d).filter(r=>r.result==='불량');
+    bads.forEach(r=>{
+      const s = d.siteName || '미지정';
+      const e = d.equipment || '미지정';
+      siteMap[s] = (siteMap[s] || 0) + 1;
+      equipMap[e] = (equipMap[e] || 0) + 1;
+      itemMap[r.item || '항목'] = (itemMap[r.item || '항목'] || 0) + 1;
+    });
+  });
+
+  makeChart('summaryChart', ['전체 점검','불량 점검'], [total, badIns]);
+  makeChart('siteChart', sortKeys(siteMap), sortValues(siteMap));
+  makeChart('equipmentChart', sortKeys(equipMap), sortValues(equipMap));
+  makeChart('itemChart', sortKeys(itemMap), sortValues(itemMap));
+}
+
+function sortKeys(map){
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(x=>x[0]);
+}
+function sortValues(map){
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]).map(x=>x[1]);
+}
+
+function makeChart(id, labels, data){
+  if(charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id),{
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        data,
+        backgroundColor:'#0059b3'
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{weight:'700'}}},y:{beginAtZero:true}}
+    }
+  });
+}
+
+/* ================= 목록 ================= */
+function renderList(data){
+  list.innerHTML='';
+  if(!data.length){
+    list.innerHTML='<div class="empty">조회된 점검 내역이 없습니다</div>';
+    return;
+  }
+
+  data.forEach(d=>{
+    const rs = safeResults(d);
+    const bads = rs.filter(r=>r.result==='불량');
+    const badgeClass = bads.length ? 'bad' : 'good';
+    const badgeText = bads.length ? `불량 ${bads.length}건` : '정상';
+
+    const div=document.createElement('div');
+    div.className='row-card';
+    div.innerHTML=`
+      <div class="row-title">${d.inspectionDate || '-'} | ${d.siteName || '-'} | ${d.equipment || '-'}</div>
+      <div class="row-sub">장비번호: ${d.equipmentNumber || '-'} · 점검자: ${d.inspector || '-'}</div>
+      <span class="badge ${badgeClass}">${badgeText}</span>
+      ${
+        bads.map(b=>`
+          <div class="bad-item">
+            <strong>${b.item || ''}</strong>
+            <div class="action">조치: ${b.action || ''}</div>
+          </div>
+        `).join('')
+      }
+    `;
+    list.appendChild(div);
+  });
+}
+
+/* ================= PDF 다운로드 (그래프 포함) ================= */
+function downloadPDF(){
+  const area = document.getElementById('pdfArea');
+
+  const site = filterSite.value || '전현장';
+  const equip = filterEquipment.value || '전장비';
+  const date = filterDate.value || '전체';
+
+  const opt = {
+    margin: [10, 10, 10, 10],
+    filename: `동진토건(주) 건설기계_안전점검보고서_${site}_${equip}_${date}.pdf`,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff'
+    },
+    jsPDF: {
+      unit: 'mm',
+      format: 'a4',
+      orientation: 'portrait'
+    },
+    pagebreak: { mode: ['css','legacy'] }
+  };
+
+  html2pdf().set(opt).from(area).save();
+}
+</script>
+
+</body>
+</html>

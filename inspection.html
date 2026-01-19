@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>건설기계 일일 안전점검</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+<!-- Firebase compat -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Noto Sans KR';
+  background:linear-gradient(135deg,#e8f0ff,#f4f7ff);
+  padding:16px;color:#0b1b3b
+}
+.container{
+  max-width:1000px;margin:auto;background:#fff;
+  border-radius:26px;
+  box-shadow:0 18px 45px rgba(0,40,120,.22)
+}
+.header{
+  background:linear-gradient(135deg,#004080,#002b5c);
+  color:#fff;padding:30px
+}
+.header h1{font-size:30px;font-weight:900}
+.header p{opacity:.9;margin-top:6px}
+
+.section{padding:30px}
+
+.form-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px
+}
+@media(max-width:720px){
+  .form-grid{grid-template-columns:1fr}
+}
+
+label{font-weight:800;margin-bottom:6px;display:block}
+input,select,textarea{
+  width:100%;
+  padding:14px 15px;
+  border-radius:14px;
+  border:2px solid #dbe6ff;
+  font-size:16px
+}
+input[readonly]{background:#eef2ff}
+textarea{resize:vertical}
+
+.item{
+  background:#f6f9ff;
+  border:2px solid #e0e8ff;
+  border-radius:18px;
+  padding:18px;
+  margin-bottom:16px
+}
+.item h3{
+  font-size:16px;
+  font-weight:900;
+  margin-bottom:12px
+}
+
+.choices{
+  display:flex;
+  gap:10px;
+  margin-bottom:10px
+}
+.choice{flex:1}
+.choice input{display:none}
+.choice label{
+  display:block;
+  text-align:center;
+  padding:14px;
+  border-radius:14px;
+  border:2px solid #cdd6f8;
+  font-weight:800;
+  cursor:pointer;
+  transition:.2s
+}
+input:checked + label.good{background:#2f9e44;color:#fff}
+input:checked + label.bad{background:#d62839;color:#fff}
+input:checked + label.na{background:#6c757d;color:#fff}
+
+.action-box{display:none}
+.action-box.active{display:block}
+
+.submit{
+  width:100%;
+  margin-top:20px;
+  padding:22px;
+  font-size:22px;
+  font-weight:900;
+  border:none;
+  border-radius:18px;
+  background:linear-gradient(135deg,#0059b3,#003366);
+  color:#fff;
+  cursor:pointer
+}
+.submit:disabled{
+  background:#9aa4b2;
+  cursor:not-allowed
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <div class="header">
+    <h1>🏗️ 건설기계 일일 안전점검</h1>
+    <p>장비별 법정 점검항목 · 불량 시 조치사항 기록</p>
+  </div>
+
+  <div class="section">
+
+    <div class="form-grid">
+      <div>
+        <label>📅 점검일자</label>
+        <input type="date" id="date" readonly>
+      </div>
+
+      <div>
+        <label>🏗️ 현장명</label>
+        <select id="site">
+          <option value="">현장 선택</option>
+          <option>파주pmc</option>
+          <option>울산태화강</option>
+          <option>울산우정동</option>
+          <option>여수</option>
+          <option>강변역아이파크</option>
+          <option>김해사이언스파크</option>
+        </select>
+      </div>
+
+      <div>
+        <label>🚜 장비명</label>
+        <select id="equipment">
+          <option value="">장비 선택</option>
+        </select>
+      </div>
+
+      <div>
+        <label>🔢 장비번호</label>
+        <input type="text" id="number" placeholder="예: EX-01">
+      </div>
+
+      <div>
+        <label>👷 점검자</label>
+        <input type="text" id="inspector" placeholder="성명 입력">
+      </div>
+    </div>
+
+    <div id="items" style="margin-top:28px"></div>
+
+    <button class="submit" id="submitBtn">✅ 점검 완료</button>
+  </div>
+</div>
+
+<script>
+/* Firebase */
+firebase.initializeApp({
+  apiKey: "AIzaSyAYuEpTuJ7OFrSbqwhWle-CXGwgFeXJhjE",
+  authDomain: "dj-machine-safety.firebaseapp.com",
+  projectId: "dj-machine-safety",
+  storageBucket: "dj-machine-safety.firebasestorage.app",
+  messagingSenderId: "73972298220",
+  appId: "1:73972298220:web:fe6d50e5ce1077a90410c9"
+});
+const db = firebase.firestore();
+
+/* 오늘 날짜 고정 */
+document.addEventListener('DOMContentLoaded',()=>{
+  const t=new Date();
+  date.value=`${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+});
+
+/* 장비 목록 (27) */
+const EQUIPMENTS=[
+ '타워크레인','하이드로 크레인','이동식 Self-Erecting 크레인','크롤러 크레인','카고크레인',
+ '곤돌라','건설작업용 리프트','천장주행(갠트리)크레인','지게차',
+ '고소작업대(시저형)','고소작업대(굴절형)','고소작업차','굴삭기','항타기/항발기',
+ '덤프트럭','콘크리트 믹서트럭','콘크리트 펌프카(숏크리트)','모터 그레이더','로더',
+ '도로포장용 건설기계','아스팔트 살포기','불도저','천공기',
+ '지반 압밀침하용 건설기계','롤러','공기압축기'
+];
+
+/* 🔥 장비별 점검항목 전체 */
+function getCheckItems(eq){
+const m={
+'타워크레인':['과부하 방지장치','권과 방지장치','비상 정지장치','기복 제한장치','선회 제한장치','레버 안전장치','트롤리 및 레일','훅 및 시브','와이어로프','브레이크 및 클러치'],
+'하이드로 크레인':['과부하 방지장치','권과 방지장치','훅 및 시브','와이어로프','아웃트리거','카운터 웨이트','와이어로프 이탈방지핀','유압장치 및 실린더','각종 등화류','브레이크 및 클러치'],
+'이동식 Self-Erecting 크레인':['과부하 방지장치','권과 방지장치','트롤리 및 제한장치','훅 및 시브','와이어로프','운전석 및 조작장치','붐/마스트','턴테이블 웨이트','아웃트리거','모니터'],
+'크롤러 크레인':['과부하 방지장치','권과 방지장치','기복 제한장치','훅 및 시브','와이어로프','역회전 방지장치','앵글붐','카운터 웨이트','트랙 및 철판','브레이크'],
+'카고크레인':['과부하 방지장치','권과 방지장치','비상 정지장치','아웃트리거','훅 및 와이어로프','장비셋팅','선회장치','주요구조부','유압장치','브레이크'],
+'곤돌라':['과부하 방지장치','권과 방지장치','비상 정지장치','낙하 방지장치','과전류 계전기','승강장치','웨이트','와이어로프','작업대','추락 방지'],
+'건설작업용 리프트':['과부하 방지장치','삼상전원 차단','비상 정지장치','출입문 인터록','출입문 잠금','상·하한 리미트','낙하 방지','협착 방지','전동기·브레이크','구조부'],
+'천장주행(갠트리)크레인':['과부하 방지','권과 방지','비상 정지','훅 해지','와이어·체인','브레이크','주·횡행 리미트','정지기구','거더 레일','미끄럼 방지'],
+'지게차':['후방 카메라','제동장치','후진 경보기','유압장치','타이어','카운터 웨이트','포크','등화류','헤드가드','기타'],
+'고소작업대(시저형)':['비상 정지','비상 하강','주행 차단','협착 방지','유압장치','풋스위치','조작레버','경보장치','작업대','타이어'],
+'고소작업대(굴절형)':['비상 정지','비상 하강','과부하 방지','타이어','풋스위치','조작레버','경보장치','협착 방지','작업대','유압장치'],
+'고소작업차':['과부하 방지','비상 정지','비상 하강','아웃트리거','와이어','선회장치','외관','브레이크','모니터','모멘트'],
+'굴삭기':['안전레버','후방 카메라','제동장치','유압장치','선회장치','트랙/타이어','웨이트','버킷','등화류','기타'],
+'항타기/항발기':['권과 방지','와이어','리더','트랙','아웃트리거','발전기','웨이트','역회전 방지','구조부','기타'],
+'덤프트럭':['후방 카메라','제동장치','후진 경보기','유압장치','타이어','적재함','등화류','누유','표지','기타'],
+'콘크리트 믹서트럭':['제동장치','후진 경보기','유압장치','타이어','드럼','고정장치','등화류','누출','누유','기타'],
+'콘크리트 펌프카(숏크리트)':['제동장치','후진 경보기','유압장치','아웃트리거','타이어','선회장치','붐','등화류','셋팅','기타'],
+'모터 그레이더':['블레이드','타이어','후방 카메라','제동장치','후진 경보기','유압장치','등화류','조향','누유','기타'],
+'로더':['버킷','타이어','후방 카메라','제동장치','후진 경보기','유압장치','등화류','웨이트','고정','기타'],
+'도로포장용 건설기계':['제동장치','후진 경보기','유압장치','타이어','포장장치','살포장치','등화류','누유','표지','기타'],
+'아스팔트 살포기':['제동장치','후진 경보기','유압장치','타이어','노즐','탱크','등화류','누유','표지','기타'],
+'불도저':['비상정지','후방 카메라','제동장치','후진 경보기','유압장치','트랙','블레이드','등화류','누유','기타'],
+'천공기':['리더','트랙','와이어','유압장치','구조부','회전부','누유','등화류','표지','기타'],
+'지반 압밀침하용 건설기계':['권과 방지','역회전 방지','와이어','리더','유압장치','트랙','샌드버킷','구조부','발전기','웨이트'],
+'롤러':['비상정지','후방 카메라','제동장치','후진 경보기','유압장치','드럼','등화류','누유','표지','기타'],
+'공기압축기':['비상정지','압력계','전동기','냉각','흡입필터','안전밸브','드레인','동력부','오일탱크','기타']
+};
+return m[eq]||[];
+}
+
+/* 장비 선택 */
+EQUIPMENTS.forEach(e=>equipment.add(new Option(e,e)));
+equipment.onchange=()=>{
+  items.innerHTML='';
+  getCheckItems(equipment.value).forEach((n,i)=>{
+    items.innerHTML+=`
+    <div class="item">
+      <h3>${i+1}. ${n}</h3>
+      <div class="choices">
+        <div class="choice">
+          <input id="g${i}" type="radio" name="i${i}" value="양호">
+          <label for="g${i}" class="good">양호</label>
+        </div>
+        <div class="choice">
+          <input id="b${i}" type="radio" name="i${i}" value="불량">
+          <label for="b${i}" class="bad">불량</label>
+        </div>
+        <div class="choice">
+          <input id="n${i}" type="radio" name="i${i}" value="해당없음">
+          <label for="n${i}" class="na">해당없음</label>
+        </div>
+      </div>
+      <div class="action-box">
+        <label>🛠 불량 조치사항</label>
+        <textarea rows="3"></textarea>
+      </div>
+    </div>`;
+  });
+
+  document.querySelectorAll('.item input').forEach(r=>{
+    r.onchange=()=>{
+      r.closest('.item').querySelector('.action-box')
+        .classList.toggle('active', r.value==='불량');
+    };
+  });
+};
+
+/* 저장 */
+submitBtn.onclick=async()=>{
+ try{
+  if(!site.value) return alert('현장 선택');
+  if(!equipment.value) return alert('장비 선택');
+  if(!inspector.value||inspector.value.length<2) return alert('점검자 입력');
+
+  const results=[];
+  document.querySelectorAll('.item').forEach((el,i)=>{
+    const r=el.querySelector('input:checked');
+    if(!r) throw `${i+1}번 항목 선택`;
+    const act=el.querySelector('textarea').value.trim();
+    if(r.value==='불량'&&!act) throw `${i+1}번 조치사항 입력`;
+    results.push({item:el.querySelector('h3').innerText,result:r.value,action:act});
+  });
+
+  submitBtn.disabled=true;
+  submitBtn.innerText='⏳ 저장 중...';
+
+  await db.collection('inspections').add({
+    inspectionDate:date.value,
+    siteName:site.value,
+    equipment:equipment.value,
+    equipmentNumber:number.value,
+    inspector:inspector.value,
+    results,
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  alert('✅ 저장 완료');
+  location.reload();
+
+ }catch(e){alert(e);}
+ finally{
+  submitBtn.disabled=false;
+  submitBtn.innerText='✅ 점검 완료';
+ }
+};
+</script>
+
+</body>
+</html>
